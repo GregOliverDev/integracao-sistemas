@@ -1,9 +1,32 @@
 const express = require('express');
 const axios = require('axios');
+const redis = require('redis');
 const app = express();
 app.use(express.json());
 
-app.get("/recommendation/:city", async (req, res) => {
+const redisClient = redis.createClient({
+  url: 'redis://localhost:6000'
+});
+
+redisClient.connect().catch(console.error);
+
+const checkCache = async (req, res, next) => {
+  const { city } = req.params;
+  
+  try {
+    const cachedData = await redisClient.get(city);
+    if (cachedData) {
+      console.log('Dados recuperados do cache');
+      return res.json(JSON.parse(cachedData));
+    }
+    next();
+  } catch (err) {
+    console.error('Erro no Redis:', err);
+    next();
+  }
+};
+
+app.get("/recommendation/:city", checkCache, async (req, res) => {
     const cityName = req.params.city;
 
     try {
@@ -24,6 +47,7 @@ app.get("/recommendation/:city", async (req, res) => {
         } else {
             temp = weatherData.temp;
         }
+
         let recommendation;
         if (temp > 30) {
             recommendation = "Está calor! Mantenha-se hidratado e use protetor solar.";
@@ -33,15 +57,20 @@ app.get("/recommendation/:city", async (req, res) => {
             recommendation = "Está frio lá fora. Vista um casaco!";
         }
 
-        res.json({
+        const result = {
             city: cityName,
             temperature: temp,
             unit: "Celsius",
-            recommendation: recommendation
-        });
+            recommendation: recommendation,
+        };
+
+        await redisClient.setEx(cityName, 60, JSON.stringify(result));
+        console.log('Dados armazenados no cache');
+
+        res.json(result);
 
     } catch (error) {
-        console.error("Error fetching weather data:", error.message);
+        console.error("Erro ao buscar dados meteorológicos:", error.message);
         if (error.response && error.response.status === 404) {
             res.status(404).json({ message: 'Cidade não encontrada' });
         } else {
@@ -50,7 +79,12 @@ app.get("/recommendation/:city", async (req, res) => {
     }
 });
 
+process.on('SIGINT', () => {
+  redisClient.quit();
+  process.exit();
+});
+
 const PORT = 4000;
 app.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
+    console.log(`Servidor rodando na porta ${PORT}`);
 });

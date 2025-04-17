@@ -1,0 +1,2 @@
+***Inicialização do redis no Docker***
+    docker run -d -p 6000:6379 --name=container_redis redis
