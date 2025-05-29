@@ -1,0 +1,63 @@
+version: '3.8'
+
+services:
+  redis:
+    image: redis
+    container_name: redis
+    ports:
+      - "6379:6379"
+    networks:
+      - avaliacao-net
+
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: rabbitmq
+    ports:
+      - "5672:5672"
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+    networks:
+      - avaliacao-net
+
+  api_python:
+    build:
+      context: ./api_python
+      dockerfile: dockerfile
+    container_name: api_python
+    ports:
+      - "5000:5000"
+    depends_on:
+      - redis
+      - rabbitmq
+    networks:
+      - avaliacao-net
+
+  api_node:
+    build:
+      context: ./api_node
+      dockerfile: dockerfile
+    container_name: api_node
+    ports:
+      - "3000:3000"
+    depends_on:
+      - redis
+      - rabbitmq
+    networks:
+      - avaliacao-net
+
+  api_php:
+    build:
+      context: ./api_php
+      dockerfile: Dockerfile
+    container_name: api_php
+    ports:
+      - "8000:8000"
+    depends_on:
+      - rabbitmq
+    networks:
+      - avaliacao-net
+
+networks:
+  avaliacao-net:
+    driver: bridge
